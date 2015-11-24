@@ -1,4 +1,4 @@
-# Akka http + akka persistance (mongodb) + eventsourcing
+# Akka http + akka persistance (mongodb) + event sourcing
 
 This demo shows how to use akka persitance to store messages (mongodb) in sequence for event sourcing. 
 
