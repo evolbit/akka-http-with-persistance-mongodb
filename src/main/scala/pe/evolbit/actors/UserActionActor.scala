@@ -4,13 +4,15 @@ import akka.actor._
 import akka.persistence._
 import akka.event.Logging
 
-case class Message(data: String)
-case class Evt(data: String)
+case class AddFund(amount: Int)
 
-case class State(events: List[String] = Nil) {
-  def updated(evt: Message): State = copy(evt.data :: events)
-  def size: Int = events.length
-  override def toString: String = events.reverse.toString
+trait FundEvent {
+  def amount:Int
+}
+case class AddFundEvent(amount:Int) extends FundEvent
+
+case class FundState(totalBalance:Int = 0) {
+  def updateBalance(amount:Int) = copy(totalBalance + amount)
 }
 
 class UserActionActor extends PersistentActor {
@@ -19,30 +21,44 @@ class UserActionActor extends PersistentActor {
 
   val log = Logging(context.system, this)
 
-  var state = State()
+  var state = FundState()
+  var messagesCounter = 0
 
-  def updateState(event: Message): Unit = {
-    state = state.updated(event)
+  def updateState(event: FundEvent): Unit = {
+    val amount = event match {
+      case AddFundEvent(amount) => event.amount
+    }
+    log.info(s"current balance: ${state.totalBalance}")
+    log.info(s"new amount: ${amount}")
+    log.info(s"new balance: ${state.totalBalance + amount}")
+    state = state.updateBalance(amount)
+
+    messagesCounter = messagesCounter + 1
+      if(messagesCounter > 5){
+        saveSnapshot(state)
+        messagesCounter = 0
+    }
   }
 
   val receiveRecover: Receive = {
-    case message: Message => {
-      log.info(s"message $message")
-      updateState(message)
-    }
-    case SnapshotOffer(_, snapshot: State) => state = {
+    case AddFundEvent(amount) =>
+      val addFundEvent = AddFundEvent(amount)
+      log.info(s"recover addFundEvent $addFundEvent")
+      updateState(addFundEvent)
+
+    case SnapshotOffer(_, snapshot: FundState) => 
       log.info(s"snapshot $snapshot")
-      snapshot
-    }
+      state = snapshot
   }
 
   val receiveCommand: Receive = {
-    case message:Message =>
-      persist(message) { event =>
-        updateState(message)
-        context.system.eventStream.publish(message)
+    case AddFund(amount) =>
+      val addFundEvent = AddFundEvent(amount)
+      persist(addFundEvent) { event =>
+        updateState(addFundEvent)
       }
-    case "snap"  => saveSnapshot(state)
+      context.system.eventStream.publish(addFundEvent)
+
     case "getState" =>  sender() ! state
   }
   

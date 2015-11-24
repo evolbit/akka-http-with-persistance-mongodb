@@ -18,26 +18,33 @@ case class User()(implicit system:ActorSystem) {
   val routes =
     pathSingleSlash  {
       get {
-        parameter('message.as[String]) { message =>
-          complete {
-
-            persistentActor ! Message(message)
-            s"New message has been stored $message. Try to stop your app and open it again to recover your state"
-          }
+        complete{
+          s"Akka http"
         }
       }
     } ~
-    path("state") {
+    path("add-funds" / IntNumber)  { fund =>
+      get {
+          complete {
+            persistentActor ! AddFund(fund)
+            s"""New fund has been added $fund. 
+            |Try to stop your app and open it again to recover your balance""".stripMargin
+          }
+        }
+    } ~
+    path("current-balance") {
       get {
         complete {
           implicit val timeout = Timeout(5 seconds)
-          val currentState = (persistentActor ? "getState").mapTo[State]
+          val currentState = (persistentActor ? "getState").mapTo[FundState]
           currentState
-            .map(x => HttpResponse(entity = s"Your state is ${x.events.head}"))
+            .map{ x => 
+              val currentBalance = x.totalBalance
+              HttpResponse(entity = s"Your balance is ${currentBalance}")
+            }
             .recover { 
               case e:Throwable => {
-                print(e)
-                HttpResponse(entity = s"There was a problem getting the state...")
+                HttpResponse(entity = s"There was a problem getting the balance... $e")
               }
             }
         }
