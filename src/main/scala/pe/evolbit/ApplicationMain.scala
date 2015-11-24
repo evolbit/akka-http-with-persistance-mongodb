@@ -11,7 +11,7 @@ object ApplicationMain extends App {
   implicit val materializer = ActorMaterializer()
   implicit val ec = system.dispatcher
 
-  val user = User()
+  val user = Funds()
 
   val bindingFuture = Http().bindAndHandle(user.routes, "0.0.0.0", 8080)
 }
